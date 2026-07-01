@@ -1547,7 +1547,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
       if (venue !== "all" && m.venue !== venue) return false;
       if (date !== "all" && new Date(m.kickoff).toISOString().slice(0, 10) !== date) return false;
       return true;
-    }).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+    }).sort((a, b) => status === "finished" ? new Date(b.kickoff) - new Date(a.kickoff) : new Date(a.kickoff) - new Date(b.kickoff));
     const byDay = {};
     filtered.forEach((m) => {
       const k = fmtDayKey(m.kickoff);
