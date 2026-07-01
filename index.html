@@ -410,6 +410,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
   }
   var SQUADS = Object.fromEntries(TEAMS.map((t) => [t.id, buildSquad(t)]));
   var ALL_PLAYERS = Object.values(SQUADS).flat();
+  var SQUAD_PLAYERS = ALL_PLAYERS.slice();
   function genScorer(s2) {
     const team = teamById[s2.code];
     const rnd = seeded("rs-" + s2.name + s2.code);
@@ -816,6 +817,79 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     }
     return EID_CACHE[k] = null;
   }
+  function _tk(s) {
+    const n = (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    return n.split(/[^a-z]+/).filter(Boolean).sort().join(" ");
+  }
+  var _STAT_ALIAS_RAW = [["eg", "Marawan Attia", "Marwan Attia"], ["ir", "Ehsan Hajsafi", "Ehsan Haji Safi"], ["uz", "Odiljon Xamrobekov", "Odildzhon Khamrobekov"], ["ir", "Hossein Kanani", "Hossein Kanaani"], ["uz", "Sherzod Nasrullaev", "Sherzod Nasrulloev"], ["ir", "Mohammad Mohebbi", "Mohammad Mohebi"], ["uz", "Abbosbek Fayzullaev", "Abbosbek Fayzullayev"]];
+  var STAT_ALIAS = {};
+  _STAT_ALIAS_RAW.forEach(([c, a, b]) => {
+    STAT_ALIAS[c + "|" + _tk(a)] = _tk(b);
+  });
+  var LIVE_AGG = {};
+  var LIVE_AGG_DONE = false;
+  function applyLiveStats() {
+    for (const p of SQUAD_PLAYERS) {
+      const a = LIVE_AGG[p.teamId + "|" + _tk(p.name)];
+      if (a) {
+        p.goals = a.g;
+        p.yellow = a.y;
+        p.red = a.r;
+      } else {
+        p.goals = 0;
+        p.yellow = 0;
+        p.red = 0;
+      }
+    }
+  }
+  async function aggregatePlayerStats() {
+    if (typeof fetch === "undefined") return false;
+    const ranges = ["20260611-20260625", "20260626-20260710", "20260711-20260720"];
+    const agg = {};
+    for (const rg of ranges) {
+      let j;
+      try {
+        j = await fetch("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=" + rg).then((r) => r.json());
+      } catch (e) {
+        continue;
+      }
+      for (const ev of j.events || []) {
+        if (!ev.status || !ev.status.type || ev.status.type.state !== "post") continue;
+        const comp = ev.competitions && ev.competitions[0];
+        if (!comp) continue;
+        const tid2 = {};
+        (comp.competitors || []).forEach((c) => {
+          tid2[c.team.id] = _resolveCode(c.team && (c.team.displayName || c.team.name));
+        });
+        for (const d of comp.details || []) {
+          if (d.shootout) continue;
+          const code = tid2[d.team && d.team.id];
+          if (!code) continue;
+          const nm = d.athletesInvolved && d.athletesInvolved[0] && d.athletesInvolved[0].displayName;
+          if (!nm) continue;
+          let key = code + "|" + _tk(nm);
+          if (STAT_ALIAS[key]) key = code + "|" + STAT_ALIAS[key];
+          const rec = agg[key] || (agg[key] = { g: 0, y: 0, r: 0 });
+          if (d.scoringPlay && !d.ownGoal) rec.g++;
+          if (d.yellowCard) rec.y++;
+          if (d.redCard) rec.r++;
+        }
+      }
+    }
+    let any = false;
+    for (const k in agg) {
+      LIVE_AGG[k] = agg[k];
+      any = true;
+    }
+    if (any) {
+      applyLiveStats();
+      LIVE_AGG_DONE = true;
+    }
+    return any;
+  }
+  function liveScorers(n) {
+    return SQUAD_PLAYERS.filter((p) => p.goals > 0).slice().sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, n || 20);
+  }
   function espnStatsFor(m) {
     const k = pairKey(m), L = k && LIVE[k], eid = L && L.eid, S = eid && SUMMARY[eid];
     if (!S) return null;
@@ -1181,7 +1255,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     },
     getBracket: () => buildBracket(),
     getStandings: () => STANDINGS,
-    getLeaders: () => LEADERS,
+    getLeaders: () => LIVE_AGG_DONE ? Object.assign({}, LEADERS, { scorers: liveScorers(20).length ? liveScorers(20) : LEADERS.scorers }) : LEADERS,
     getHighlights: () => buildHighlights()
   };
   var cls = (...a) => a.filter(Boolean).join(" ");
@@ -1894,6 +1968,20 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
       const iv = setInterval(run, 15e3);
       return () => {
         live = false;
+        clearInterval(iv);
+      };
+    }, []);
+    useEffect(() => {
+      let on = true;
+      const run = () => {
+        aggregatePlayerStats().then((ok) => {
+          if (on && ok) bump((x) => x + 1);
+        });
+      };
+      run();
+      const iv = setInterval(run, 12e4);
+      return () => {
+        on = false;
         clearInterval(iv);
       };
     }, []);
