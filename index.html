@@ -583,6 +583,15 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         return { home: H, away: A, hi: Math.max(H, A), lo: Math.min(H, A), winner: H > A ? m.homeId : A > H ? m.awayId : m.winner };
       }
     }
+    const EP = typeof ESPN_PENS !== "undefined" && ESPN_PENS[k];
+    if (EP) {
+      const ph = EP[m.homeId], pa = EP[m.awayId];
+      if (ph != null || pa != null) {
+        const H = ph || 0, A = pa || 0;
+        const win = typeof ESPN_WIN !== "undefined" && ESPN_WIN[k] || (H > A ? m.homeId : m.awayId);
+        return { home: H, away: A, hi: Math.max(H, A), lo: Math.min(H, A), winner: win };
+      }
+    }
     const p = parsePens(m.note);
     if (p) {
       let win = m.winner;
@@ -742,6 +751,8 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
   }
   var SUMMARY = {};
   var ESPN_SCORE = {};
+  var ESPN_WIN = {};
+  var ESPN_PENS = {};
   var ESPN_TL = {};
   function _espnMin(clock) {
     const c = (clock || "").replace(/'/g, "").trim();
@@ -873,15 +884,25 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         if (!comp) continue;
         const tid2 = {};
         const sch = {};
+        const pen = {};
+        let winner = null;
         (comp.competitors || []).forEach((c) => {
           const cc = _resolveCode(c.team && (c.team.displayName || c.team.name));
           tid2[c.team.id] = cc;
           const v = parseInt(c.score, 10);
           if (cc && !isNaN(v)) sch[cc] = v;
+          const sv = parseInt(c.shootoutScore, 10);
+          if (cc && !isNaN(sv)) pen[cc] = sv;
+          if (cc && c.winner) winner = cc;
         });
         {
           const ck = Object.keys(sch);
-          if (ck.length === 2) ESPN_SCORE[ck.sort().join("|")] = sch;
+          if (ck.length === 2) {
+            const key = ck.sort().join("|");
+            ESPN_SCORE[key] = sch;
+            if (winner) ESPN_WIN[key] = winner;
+            if (Object.keys(pen).length) ESPN_PENS[key] = pen;
+          }
         }
         for (const d of comp.details || []) {
           if (d.shootout) continue;
@@ -1065,6 +1086,8 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
   function winnerCode(node) {
     if (!node || !node.homeId || !node.awayId) return null;
     if (node.status !== "finished") return null;
+    const wk = [node.homeId, node.awayId].sort().join("|");
+    if (typeof ESPN_WIN !== "undefined" && ESPN_WIN[wk]) return ESPN_WIN[wk];
     const p = pensFor(node);
     if (p && p.winner) return p.winner;
     const sc = node.score;
