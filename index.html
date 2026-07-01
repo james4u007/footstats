@@ -776,7 +776,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     if (has("offsides")) st.offside = [num(h.offsides), num(a.offsides)];
     return st;
   }
-  function detailFor(id, homeId, awayId, status, score) {
+  function detailFor(id, homeId, awayId, status, score, winnerId) {
     const rnd = seeded(id);
     const possH = rint(rnd, 38, 64);
     const st = (a, b) => [a, b];
@@ -792,13 +792,21 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
       yellow: st(rint(rnd, 0, 4), rint(rnd, 0, 4))
     };
     const events = [];
-    if (status !== "upcoming" && score && homeId && awayId) {
-      const total = score[0] + score[1];
+    let sc = score;
+    if (!sc && status && status !== "upcoming" && homeId && awayId) {
+      let a = rint(rnd, 1, 3), b = rint(rnd, 0, 2);
+      if (winnerId === homeId) sc = [Math.max(a, b), Math.min(a, b)];
+      else if (winnerId === awayId) sc = [Math.min(a, b), Math.max(a, b)];
+      else sc = [a, b];
+      if (sc[0] + sc[1] === 0) sc = [1, 0];
+    }
+    if (status !== "upcoming" && sc && homeId && awayId) {
+      const total = sc[0] + sc[1];
       const sH = SQUADS[homeId] || [], sA = SQUADS[awayId] || [];
       let scored = [0, 0];
       if (sH.length && sA.length) {
         for (const m of Array.from({ length: total }, () => rint(rnd, 3, 90)).sort((a, b) => a - b)) {
-          const side = scored[0] < score[0] && (scored[1] >= score[1] || rnd() > 0.5) ? 0 : 1;
+          const side = scored[0] < sc[0] && (scored[1] >= sc[1] || rnd() > 0.5) ? 0 : 1;
           scored[side]++;
           const sq = side === 0 ? sH : sA;
           const scorer = pick(rnd, sq.filter((p) => p.pos !== "GK"));
@@ -866,6 +874,10 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     const score = e.homeScore != null && e.awayScore != null ? [e.homeScore, e.awayScore] : null;
     const realFinished = dataStatus === "finished" && score != null;
     const id = "ko-" + round + "-" + i;
+    const win = resolveWinner(e);
+    const kickoff = koKick(e.homeCode, e.awayCode, e.date, e.time);
+    const started = dataStatus === "finished" || e.homeCode && e.awayCode && !isNaN(Date.parse(kickoff)) && Date.parse(kickoff) < Date.now();
+    const genStatus = started ? "finished" : "upcoming";
     const obj = Object.assign(
       {
         id,
@@ -873,14 +885,14 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         awayId: e.awayCode || null,
         stage: STAGE_NAME[round],
         group: null,
-        kickoff: koKick(e.homeCode, e.awayCode, e.date, e.time),
+        kickoff,
         venue: e.venue || "TBD",
         city: e.city || "",
         score,
         note: e.note || "",
-        winner: resolveWinner(e)
+        winner: win
       },
-      detailFor(id, e.homeCode, e.awayCode, dataStatus, score)
+      detailFor(id, e.homeCode, e.awayCode, genStatus, score, win)
     );
     return defineLive(obj, realFinished);
   }
