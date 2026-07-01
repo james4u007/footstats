@@ -254,6 +254,20 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
   var FM_SQ = typeof FM_SQUADS !== "undefined" ? FM_SQUADS : {};
   var fmPhoto = (id) => "https://images.fotmob.com/image_resources/playerimages/" + id + ".png";
   var GRP_NOUN = { keepers: "goalkeeper", defenders: "defender", midfielders: "midfielder", attackers: "forward" };
+  var CAPTAINS = { ar: "Lionel Messi", fr: "Kylian Mbapp\xE9", br: "Marquinhos", pt: "Cristiano Ronaldo", "gb-eng": "Harry Kane", de: "Joshua Kimmich", nl: "Virgil van Dijk", be: "Kevin De Bruyne", hr: "Luka Modric", es: "Rodri", uy: "Jos\xE9 Gim\xE9nez", us: "Christian Pulisic", mx: "Edson \xC1lvarez", ca: "Alphonso Davies", ma: "Achraf Hakimi", sn: "Kalidou Koulibaly", kr: "Heung-Min Son", no: "Martin \xD8degaard", ch: "Granit Xhaka", au: "Mathew Ryan", eg: "Mohamed Salah", ir: "Alireza Jahanbakhsh", gh: "Jordan Ayew", ci: "Franck Kessi\xE9", co: "James Rodr\xEDguez", ec: "Enner Valencia", py: "Gustavo G\xF3mez", dz: "Riyad Mahrez", at: "Marcel Sabitzer", cz: "Tom\xE1s Soucek", "gb-sct": "Andrew Robertson", se: "Victor Nilsson Lindel\xF6f", tr: "Hakan \xC7alhanoglu", ba: "Edin Dzeko", cd: "Chancel Mbemba", za: "Ronwen Williams", nz: "Chris Wood", qa: "Hassan Al Haydos", pa: "An\xEDbal Godoy", sa: "Salem Al Dawsari" };
+  function markCaptain(teamId, squad) {
+    if (!squad || !squad.length) return squad;
+    let cap = null;
+    const nm = CAPTAINS[teamId];
+    if (nm) cap = squad.find((p) => p.name === nm);
+    if (!cap) cap = squad.find((p) => p.star);
+    if (!cap) {
+      const out = squad.filter((p) => p.pos !== "GK");
+      cap = out.slice().sort((a, b) => b.age - a.age)[0] || squad[0];
+    }
+    if (cap) cap.captain = true;
+    return squad;
+  }
   function mkPlayer(team, rnd, i, o) {
     const isGK = o.pos === "GK";
     const fit = pick(rnd, FITNESS);
@@ -321,12 +335,12 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         (isXI ? xi : bench).push([arr[k], pos]);
       }
     });
-    return [...xi, ...bench].map((pr, i) => {
+    return markCaptain(team.id, [...xi, ...bench].map((pr, i) => {
       const [row, pos] = pr;
       const [name, fid, grp, num] = row;
       const st = starMap[name];
       return mkPlayer(team, rnd, i, { name, num: num || i + 1, pos, club: st ? st[3] : "", age: st ? st[4] : rint(rnd, 19, 34), height: st ? st[5] : (1.7 + rnd() * 0.25).toFixed(2) + "m", foot: st ? st[6] : pick(rnd, FOOT), star: !!st, photo: fmPhoto(fid), fmId: fid, noun: GRP_NOUN[grp] || "player" });
-    });
+    }));
   }
   function buildSquad(team) {
     const real = FM_SQ[team.id];
@@ -385,7 +399,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         bio: `${base.name.replace(".", " ")} is a ${base.pos === "GK" ? "goalkeeper" : base.pos === "ST" ? "forward" : base.pos.includes("B") ? "defender" : "midfielder"} for ${base.club} and part of ${team.name}'s 2026 World Cup squad.`
       });
     }
-    return squad;
+    return markCaptain(team.id, squad);
   }
   var SQUADS = Object.fromEntries(TEAMS.map((t) => [t.id, buildSquad(t)]));
   var ALL_PLAYERS = Object.values(SQUADS).flat();
@@ -1438,7 +1452,7 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
   }
   function PlayerCard({ p, nav }) {
     const t = teamById[p.teamId];
-    return /* @__PURE__ */ React.createElement("div", { onClick: () => nav("player", { id: p.id }), className: "card-lift glass rounded-2xl overflow-hidden cursor-pointer relative" }, /* @__PURE__ */ React.createElement("div", { className: "absolute top-2.5 right-2.5 z-10" }, /* @__PURE__ */ React.createElement(FavButton, { kind: "players", id: p.id })), /* @__PURE__ */ React.createElement("div", { className: "relative h-28 bg-gradient-to-br from-white/5 to-transparent", style: { background: `linear-gradient(135deg, ${t.color}33, transparent)` } }, /* @__PURE__ */ React.createElement("span", { className: "absolute top-2.5 left-3 font-display font-black text-3xl text-white/15" }, p.number), /* @__PURE__ */ React.createElement("img", { src: p.photo, loading: "lazy", alt: p.name, onError: (e) => {
+    return /* @__PURE__ */ React.createElement("div", { onClick: () => nav("player", { id: p.id }), className: "card-lift glass rounded-2xl overflow-hidden cursor-pointer relative" }, /* @__PURE__ */ React.createElement("div", { className: "absolute top-2.5 right-2.5 z-10" }, /* @__PURE__ */ React.createElement(FavButton, { kind: "players", id: p.id })), p.captain && /* @__PURE__ */ React.createElement("div", { className: "absolute top-2.5 left-2.5 z-20", title: "Captain" }, /* @__PURE__ */ React.createElement("span", { className: "inline-flex items-center justify-center h-5 min-w-[20px] px-1 rounded-md bg-amber-400 text-black text-[11px] font-black shadow ring-1 ring-black/10" }, "C")), /* @__PURE__ */ React.createElement("div", { className: "relative h-28 bg-gradient-to-br from-white/5 to-transparent", style: { background: `linear-gradient(135deg, ${t.color}33, transparent)` } }, !p.captain && /* @__PURE__ */ React.createElement("span", { className: "absolute top-2.5 left-3 font-display font-black text-3xl text-white/15" }, p.number), /* @__PURE__ */ React.createElement("img", { src: p.photo, loading: "lazy", alt: p.name, onError: (e) => {
       if (p.photoFallback && e.target.src !== p.photoFallback) e.target.src = p.photoFallback;
     }, className: "absolute bottom-0 left-1/2 -translate-x-1/2 h-24 w-24 rounded-full object-cover ring-4 ring-black/10 translate-y-3" })), /* @__PURE__ */ React.createElement("div", { className: "pt-6 px-3 pb-3 text-center" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center gap-1.5" }, /* @__PURE__ */ React.createElement("span", { className: "font-bold text-[14px] truncate" }, p.name), p.star && /* @__PURE__ */ React.createElement(Icon, { name: "star", size: 12, className: "text-amber-400" })), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center gap-2 mt-1 text-[11px] text-ink-400" }, /* @__PURE__ */ React.createElement(Pill, { tone: "brand", className: "!py-0.5 !px-2" }, p.pos), /* @__PURE__ */ React.createElement(Flag, { team: t, size: 14 }), /* @__PURE__ */ React.createElement("span", null, p.age, "y")), /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-[11px] text-ink-500 truncate" }, p.club), /* @__PURE__ */ React.createElement("div", { className: "mt-3 grid grid-cols-3 gap-1 text-center" }, [["G", p.goals], ["A", p.assists], ["\u2605", p.rating]].map(([l, v]) => /* @__PURE__ */ React.createElement("div", { key: l, className: "rounded-lg bg-white/4 dark:bg-white/4 py-1.5" }, /* @__PURE__ */ React.createElement("div", { className: "font-bold text-[13px]" }, v), /* @__PURE__ */ React.createElement("div", { className: "text-[9px] text-ink-400" }, l)))), /* @__PURE__ */ React.createElement("div", { className: "mt-2 flex items-center justify-center gap-1.5 text-[10px]", style: { color: p.fitnessColor } }, /* @__PURE__ */ React.createElement("span", { className: "h-1.5 w-1.5 rounded-full", style: { background: p.fitnessColor } }), p.fitness)));
   }
