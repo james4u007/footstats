@@ -660,6 +660,8 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     const k = pairKey(m);
     const fl = k && FM_LIVE[k];
     if (fl && fl.events && fl.events.length) return fl.events;
+    const et = k && ESPN_TL[k];
+    if (et && et.length) return et;
     const arr = k && FOTMOB_TL[k];
     if (!arr || !arr.length) return null;
     return arr.map((e) => ({ minute: e.m, side: e.side, type: e.type, player: e.player, assist: e.assist, off: e.off, og: e.og }));
@@ -728,6 +730,33 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
     }
   }
   var SUMMARY = {};
+  var ESPN_TL = {};
+  function _espnMin(clock) {
+    const c = (clock || "").replace(/'/g, "").trim();
+    const b = parseInt(c, 10);
+    const a = (c.match(/\+\s*(\d+)/) || [])[1];
+    return { disp: c.replace(/\s+/g, "") || "", sort: (isNaN(b) ? 0 : b) + (a ? +a / 100 : 0) };
+  }
+  function parseEspnEvents(keyEvents, homeId, awayId) {
+    const out = [];
+    for (const e of keyEvents || []) {
+      const tn = (e.type && (e.type.text || e.type.name) || "").toLowerCase();
+      const code = _resolveCode(e.team && (e.team.displayName || e.team.name));
+      const side = code === awayId ? 1 : 0;
+      const { disp, sort } = _espnMin(e.clock && e.clock.displayValue);
+      const parts = (e.participants || []).map((p) => p.athlete && (p.athlete.displayName || p.athlete.shortName)).filter(Boolean);
+      if (tn.indexOf("goal") >= 0) {
+        const o = { minute: disp, sort, side, type: "goal", player: parts[0] };
+        if (tn.indexOf("own") >= 0) o.og = 1;
+        else if (parts[1]) o.assist = parts[1];
+        out.push(o);
+      } else if (tn.indexOf("red card") >= 0) out.push({ minute: disp, sort, side, type: "red", player: parts[0] });
+      else if (tn.indexOf("yellow card") >= 0) out.push({ minute: disp, sort, side, type: "yellow", player: parts[0] });
+      else if (tn.indexOf("substitution") >= 0) out.push({ minute: disp, sort, side, type: "sub", player: parts[0], off: parts[1] || "" });
+    }
+    out.sort((a, b) => a.sort - b.sort);
+    return out;
+  }
   async function fetchSummary(eid, homeId, awayId) {
     if (typeof fetch === "undefined" || !eid) return;
     try {
@@ -746,6 +775,11 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         out[code] = map;
       });
       if (out[homeId] && out[awayId]) SUMMARY[eid] = { home: out[homeId], away: out[awayId], at: Date.now() };
+      if (homeId && awayId) {
+        const key = [homeId, awayId].sort().join("|");
+        const tl = parseEspnEvents(j.keyEvents, homeId, awayId);
+        if (tl.length) ESPN_TL[key] = tl;
+      }
     } catch (e) {
     }
   }
