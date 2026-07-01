@@ -752,7 +752,8 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
       const side = code === awayId ? 1 : 0;
       const { disp, sort } = _espnMin(e.clock && e.clock.displayValue);
       const parts = (e.participants || []).map((p) => p.athlete && (p.athlete.displayName || p.athlete.shortName)).filter(Boolean);
-      if (tn.indexOf("goal") >= 0) {
+      const isGoal = tn.indexOf("goal") >= 0 || tn.indexOf("penalty") >= 0 && tn.indexOf("scored") >= 0;
+      if (isGoal) {
         const o = { minute: disp, sort, side, type: "goal", player: parts[0] };
         if (tn.indexOf("own") >= 0) o.og = 1;
         else if (parts[1]) o.assist = parts[1];
