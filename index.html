@@ -532,6 +532,9 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
           const h = L.score[o.homeId], a = L.score[o.awayId];
           if (h != null && a != null) return [h, a];
         }
+        if (o._score) return o._score;
+        const es = typeof ESPN_SCORE !== "undefined" && k && ESPN_SCORE[k];
+        if (es && es[o.homeId] != null && es[o.awayId] != null) return [es[o.homeId], es[o.awayId]];
         return o._score;
       },
       set(v) {
@@ -869,9 +872,17 @@ window.FM_SQUADS = {"uy":[["Sergio Rochet",553476,"keepers",1],["Santiago Mele",
         const comp = ev.competitions && ev.competitions[0];
         if (!comp) continue;
         const tid2 = {};
+        const sch = {};
         (comp.competitors || []).forEach((c) => {
-          tid2[c.team.id] = _resolveCode(c.team && (c.team.displayName || c.team.name));
+          const cc = _resolveCode(c.team && (c.team.displayName || c.team.name));
+          tid2[c.team.id] = cc;
+          const v = parseInt(c.score, 10);
+          if (cc && !isNaN(v)) sch[cc] = v;
         });
+        {
+          const ck = Object.keys(sch);
+          if (ck.length === 2) ESPN_SCORE[ck.sort().join("|")] = sch;
+        }
         for (const d of comp.details || []) {
           if (d.shootout) continue;
           const code = tid2[d.team && d.team.id];
